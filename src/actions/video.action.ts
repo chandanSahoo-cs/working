@@ -1,24 +1,30 @@
-"use server"
+'use server';
 
 import { handleAsync } from '@/lib/handleAsync';
 import prisma from '@/lib/prisma';
 
 // Create a new video
-export async function createVideo(formData: FormData) {
+export async function createVideo({
+  data,
+}: {
+  data: {
+    videoId: string;
+    title: string;
+    description: string;
+    thumbnailUrl: string;
+  };
+}) {
   const [video, error] = await handleAsync(async () => {
-    const videoId = formData.get('videoId') as string;
-    const title = formData.get('title') as string;
-    const description = formData.get('description') as string;
-    const duration = parseInt(formData.get('duration') as string, 10);
-    const thumbnailUrl = formData.get('thumbnailUrl') as string;
+    console.log('data ::', data);
 
     const newVideo = await prisma.video.create({
       data: {
-        videoId,
-        title,
-        description,
-        duration,
-        thumbnailUrl,
+        videoId: data.videoId,
+        title: data.title,
+        description: data.description,
+        thumbnailUrl: data.thumbnailUrl,
+        duration: 0, // Add a default value for duration or get it from data
+        // Add other required fields if needed
       },
     });
 
@@ -26,8 +32,8 @@ export async function createVideo(formData: FormData) {
   });
 
   if (error) {
-    console.error('Error creating video ::', error.message);
-    return null;
+    console.error('Error creating video:', error);
+    throw error; // Important to throw error for proper error handling
   }
 
   return video;
@@ -40,23 +46,22 @@ export async function getVideoById(videoId: string) {
       where: {
         videoId,
       },
-      include: {
-        playlists: true,
-        quizzes: true,
-        bookmarks: true,
-        notes: true, // Include notes related to the video
-      },
+      // include: {
+      //   playlists: true,
+      //   quizzes: true,
+      //   bookmarks: true,
+      //   notes: true, // Include notes related to the video
+      // },
     });
 
-    if (!video) throw new Error('Video not found');
+    if (!video) {
+      console.error('Video not found from getVideoById');
+      return null;
+    }
     return video;
   });
 
-  if (error) {
-    console.error('Error getting video by ID:', error.message);
-    return null;
-  }
-  console.log("video by id ::", video);
+  console.log('video by id ::', video);
   return video;
 }
 
@@ -131,7 +136,8 @@ export async function getQuizzesForVideo(videoId: string) {
       },
     });
 
-    if (!quizzesForVideo.length) throw new Error('No quizzes found for this video');
+    if (!quizzesForVideo.length)
+      throw new Error('No quizzes found for this video');
     return quizzesForVideo;
   });
 

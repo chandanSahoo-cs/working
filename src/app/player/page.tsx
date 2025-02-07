@@ -1,5 +1,5 @@
 'use client';
-
+import axios from 'axios';
 import { useCallback, useEffect, useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useSession, signIn } from 'next-auth/react';
@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { Loader2, ChevronLeft, ChevronRight, Bold, Italic } from 'lucide-react';
+import { fetchPlaylistItems } from '@/lib/youtube';
 
 export default function PlayerPage() {
   const searchParams = useSearchParams();
@@ -20,7 +21,29 @@ export default function PlayerPage() {
   } | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const { data: session, status } = useSession();
-
+  const [captions, setCaptions] = useState('');
+  const handleQuiz = (videoId) => {
+    router.push('/quiz');
+    fetchCaptions(videoId);
+  };
+  // const fetchCaptions = async (videoId: string) => {
+  //   try {
+  //     const response = await axios.get(`/api/getCaption?videoId=${videoId}`, {
+  //       params: { videoId },
+  //       headers: {
+  //         'Content-Type': 'application/json',
+  //       },
+  //       withCredentials: false, // Allows CORS with credentials (if needed)
+  //     });
+  //     router.push('/quiz');
+  //     setCaptions(response.data.captions);
+  //   } catch (error) {
+  //     console.error(
+  //       'Error fetching captions:',
+  //       error.response?.data?.error || error.message,
+  //     );
+  //   }
+  // };
   useEffect(() => {
     const currentVideoId = searchParams.get('videoId');
     setVideoId(currentVideoId);
@@ -35,7 +58,10 @@ export default function PlayerPage() {
           } else {
             // Fetch playlist items here if needed
             // Mocked for now
-            const response = await fetchPlaylistItems(session.accessToken, 'PLRAV69dS1uWTvNby0b1w_boT35Onv5YWS');
+            const response = await fetchPlaylistItems(
+              session.accessToken,
+              'PLRAV69dS1uWTvNby0b1w_boT35Onv5YWS',
+            );
             setPlaylists(response.items);
           }
         } catch (error) {
@@ -118,10 +144,15 @@ export default function PlayerPage() {
     <div className="flex flex-col lg:flex-row gap-6 p-6 bg-background min-h-screen">
       <div className="lg:w-3/4">
         {videoId ? (
-          <VideoPlayer videoId={videoId} />
+          <div>
+            <Button onClick={() => handleQuiz(videoId)}>Start Quiz</Button>
+            <VideoPlayer videoId={videoId} />
+          </div>
         ) : (
           <Card className="p-6">
-            <CardContent>No video selected. Please choose one from the playlist.</CardContent>
+            <CardContent>
+              No video selected. Please choose one from the playlist.
+            </CardContent>
           </Card>
         )}
         <div className="mt-6">
@@ -148,6 +179,7 @@ export default function PlayerPage() {
 
 function VideoPlayer({ videoId }: { videoId: string }) {
   const videoUrl = `https://www.youtube.com/embed/${videoId}`;
+
   return (
     <Card className="overflow-hidden">
       <iframe
@@ -167,6 +199,8 @@ function VideoPlayer({ videoId }: { videoId: string }) {
 import { Mic, Edit } from 'lucide-react';
 
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { getCaptions } from '@dofy/youtube-caption-fox';
+import { fetchCaptions } from '@/lib/captions';
 
 const NotesEditor = () => {
   const [notes, setNotes] = useState('');
@@ -182,7 +216,8 @@ const NotesEditor = () => {
 
   const initSpeechRecognition = useCallback(() => {
     try {
-      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      const SpeechRecognition =
+        window.SpeechRecognition || window.webkitSpeechRecognition;
       if (!SpeechRecognition) {
         throw new Error('Speech Recognition is not supported in this browser');
       }
@@ -208,10 +243,10 @@ const NotesEditor = () => {
 
       recognition.onresult = (event) => {
         const transcript = Array.from(event.results)
-          .map(result => result[0].transcript)
+          .map((result) => result[0].transcript)
           .join(' ');
-        
-        setNotes(prev => {
+
+        setNotes((prev) => {
           const lastChar = prev.slice(-1);
           const space = lastChar && lastChar !== ' ' ? ' ' : '';
           return prev + space + transcript;
@@ -237,37 +272,43 @@ const NotesEditor = () => {
         speechRecognition.start();
       }
     } catch (err) {
-      setError(`Failed to ${isRecording ? 'stop' : 'start'} recording: ${err.message}`);
+      setError(
+        `Failed to ${isRecording ? 'stop' : 'start'} recording: ${err.message}`,
+      );
     }
   }, [speechRecognition, isRecording, initSpeechRecognition]);
 
-  const handleTextFormat = useCallback((format: 'bold' | 'italic') => {
-    const textarea = document.querySelector('textarea');
-    if (!textarea) return;
+  const handleTextFormat = useCallback(
+    (format: 'bold' | 'italic') => {
+      const textarea = document.querySelector('textarea');
+      if (!textarea) return;
 
-    const start = textarea.selectionStart;
-    const end = textarea.selectionEnd;
-    const selectedText = notes.substring(start, end);
-    
-    const formatMap = {
-      bold: `**${selectedText}**`,
-      italic: `_${selectedText}_`
-    };
+      const start = textarea.selectionStart;
+      const end = textarea.selectionEnd;
+      const selectedText = notes.substring(start, end);
 
-    const newText = notes.substring(0, start) + formatMap[format] + notes.substring(end);
-    setNotes(newText);
-  }, [notes]);
+      const formatMap = {
+        bold: `**${selectedText}**`,
+        italic: `_${selectedText}_`,
+      };
+
+      const newText =
+        notes.substring(0, start) + formatMap[format] + notes.substring(end);
+      setNotes(newText);
+    },
+    [notes],
+  );
 
   const handleTextImprovement = async () => {
     try {
       setIsProcessing(true);
       setError('');
-      
+
       // Simulated API call - replace with actual AI service
       const response = await fetch('your-ai-service-endpoint', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: notes })
+        body: JSON.stringify({ text: notes }),
       });
 
       if (!response.ok) {
@@ -286,7 +327,9 @@ const NotesEditor = () => {
   return (
     <Card className="shadow-lg">
       <CardHeader>
-        <CardTitle className="text-2xl font-semibold">Smart Notes Editor</CardTitle>
+        <CardTitle className="text-2xl font-semibold">
+          Smart Notes Editor
+        </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         {error && (
@@ -294,7 +337,7 @@ const NotesEditor = () => {
             <AlertDescription>{error}</AlertDescription>
           </Alert>
         )}
-        
+
         <div className="flex flex-wrap items-center gap-2">
           <Button
             variant="outline"
@@ -304,7 +347,7 @@ const NotesEditor = () => {
             <Bold className="w-4 h-4" />
             Bold
           </Button>
-          
+
           <Button
             variant="outline"
             onClick={() => handleTextFormat('italic')}
@@ -313,7 +356,7 @@ const NotesEditor = () => {
             <Italic className="w-4 h-4" />
             Italic
           </Button>
-          
+
           <Button
             variant="outline"
             onClick={handleVoiceRecording}
@@ -323,7 +366,7 @@ const NotesEditor = () => {
             <Mic className={`w-4 h-4 ${isRecording ? 'text-red-500' : ''}`} />
             {isRecording ? 'Stop Recording' : 'Start Recording'}
           </Button>
-          
+
           <Button
             variant="outline"
             onClick={handleTextImprovement}
@@ -346,10 +389,6 @@ const NotesEditor = () => {
   );
 };
 
-
-
-
-
 function Playlist({
   playlistData,
   onNext,
@@ -370,7 +409,9 @@ function Playlist({
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-lg">{currentVideo?.snippet.title || 'Playlist'}</CardTitle>
+        <CardTitle className="text-lg">
+          {currentVideo?.snippet.title || 'Playlist'}
+        </CardTitle>
       </CardHeader>
       <CardContent>
         <div className="space-y-4">

@@ -1,6 +1,6 @@
 'use server';
 
-import { handleAsync } from '@/lib/handleAsync';
+import { handleAsync } from '@/lib/handleAsync'; 
 import prisma from '@/lib/prisma';
 
 export async function createBookmark(

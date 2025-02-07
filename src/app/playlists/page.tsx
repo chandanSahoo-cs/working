@@ -8,6 +8,8 @@ import { Play, Youtube, LogOut } from 'lucide-react';
 import ModeToggle from '@/components/ModeToggle';
 import { fetchPlaylistItems } from '@/lib/youtube';
 import { Button } from '@/components/ui/button';
+import { createVideo, getVideoById } from '@/actions/video.action';
+import { fetchCaptions } from '@/lib/captions';
 
 interface PlaylistItem {
   id: string;
@@ -25,18 +27,22 @@ interface PlaylistItem {
 }
 
 // Individual video card component
-const VideoCard = ({ 
-  video, 
-  onPlay 
-}: { 
-  video: PlaylistItem; 
+const VideoCard = ({
+  video,
+  onPlay,
+}: {
+  video: PlaylistItem;
   onPlay: (videoId: string, video: PlaylistItem) => void;
 }) => (
   <Card className="overflow-hidden group hover:shadow-lg transition-all duration-300">
     <div className="relative">
       <img
         className="w-full h-48 object-cover"
-        src={video.snippet.thumbnails?.medium?.url || video.snippet.thumbnails?.default?.url || '/placeholder.png'}
+        src={
+          video.snippet.thumbnails?.medium?.url ||
+          video.snippet.thumbnails?.default?.url ||
+          '/placeholder.png'
+        }
         alt={video.snippet.title}
       />
       <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-all duration-300 flex items-center justify-center">
@@ -72,7 +78,7 @@ export default function Home() {
         try {
           const response = await fetchPlaylistItems(
             session.accessToken,
-            'PLRAV69dS1uWTvNby0b1w_boT35Onv5YWS'
+            'PLRAV69dS1uWTvNby0b1w_boT35Onv5YWS',
           );
           setPlaylists(response.items);
         } catch (error) {
@@ -83,17 +89,35 @@ export default function Home() {
     }
   }, [session]);
 
-  const handleNavigate = (videoId: string, video: PlaylistItem) => {
+  const handleOnPlay = async (videoId: string, videos: PlaylistItem) => {
     localStorage.setItem(
       'currentPlaylist',
       JSON.stringify({
         videos: playlists,
         currentVideoId: videoId,
         currentIndex: playlists.findIndex(
-          (item) => item.snippet.resourceId.videoId === videoId
+          (item) => item.snippet.resourceId.videoId === videoId,
         ),
-      })
+      }),
     );
+    const videoData = {
+      title: videos.snippet.title,
+      description: videos.snippet.description,
+      videoId: videoId,
+      thumbnailUrl:
+        videos.snippet.thumbnails?.medium?.url ||
+        videos.snippet.thumbnails?.default?.url ||
+        '/placeholder.png',
+    };
+    const video = await getVideoById(videoId);
+    console.log('video:', video);
+    if (video === null) {
+      console.log('Creating video:', videoData);
+      await createVideo({ data: videoData });
+      console.log('Fetching captions for video:', videoId);
+      await fetchCaptions({ videoId: videoId });
+    }
+    await fetchCaptions({ videoId: videoId });
     router.push(`/player?videoId=${videoId}`);
   };
 
@@ -153,7 +177,7 @@ export default function Home() {
                   <VideoCard
                     key={video.id}
                     video={video}
-                    onPlay={handleNavigate}
+                    onPlay={handleOnPlay}
                   />
                 ))}
               </div>
